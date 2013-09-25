@@ -7,7 +7,11 @@ import java.awt.Robot;
 import java.awt.AWTException;
 import java.awt.image.BufferedImage;
 import java.awt.Toolkit;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 
 
 import de.jaetzold.philips.hue.*;
@@ -19,15 +23,28 @@ public class ambientControl {
     public int pixelScanSpeed = 1;
     public int resyncFequency = 100;
 
+    public HueBridge bridge = null;
+
+
+    public int leftLightId = 2;
+    public int topLightId = 1;
+    public int rightLightId = 3;
+    public int bottomLightId = -1;
+
     protected Robot robotHelper;
     protected Rectangle screenRectangle;
     protected int screenWidth;
     protected int screenHeight;
     protected int runsSinceResync = 0;
 
+    protected Thread scanThread;
+
     protected double scanSpan  = 0.8;
     protected double scanDepth = 0.3;
     protected HashMap <String,HashMap<Integer,Integer>> scanAreas;
+
+
+
 
     public ambientControl()
     {
@@ -36,9 +53,9 @@ public class ambientControl {
 
 
     /**
-     * eyeyr
+     *
      */
-    public void scanAll()
+    public void scanAllOnce()
     {
         runsSinceResync++;
         if (runsSinceResync >= resyncFequency)
@@ -49,6 +66,156 @@ public class ambientControl {
         float[] top = scanSection(scanAreas.get("top"));
         float[] bottom = scanSection(scanAreas.get("bottom"));
 
+        updateAllLights(left,right,top,bottom);
+
+    }
+
+    public void startScanThread()
+    {
+        scanThread = new Thread()
+        {
+            public void run() {
+                System.out.println("Starting scan thread");
+
+                while(true)
+                {
+                    scanAllOnce();
+                    try {
+                        Thread.sleep(300);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                    }
+                }
+
+
+            }
+        };
+        scanThread.start();
+    }
+
+    public void stopScanThread()
+    {
+        scanThread.stop();
+    }
+
+
+
+    public String newLink()
+    {
+        return newLink(0);
+    }
+
+    public String newLinkByIp(String ipAddress,String username)
+    {
+        try{bridge = new HueBridge(InetAddress.getByName(ipAddress),username);}catch (UnknownHostException e) {e.printStackTrace();}
+        System.out.println("Establishing new link to hue bridge......\nPress button on bridge");
+        bridge.authenticate(true);
+        username = bridge.getUsername();
+        System.out.println("Finished: " +  username);
+        return username;
+    }
+
+    public String newLink(int bridgeIndex)
+    {
+
+        List<HueBridge> bridges = HueBridge.discover();
+        if (bridges.size() == 0)
+        {
+            System.out.println("NO BRIDGES FOUND!");
+            return "";
+        }
+        bridge = bridges.get(bridgeIndex);
+        System.out.println("Establishing new link to hue bridge......\nPress button on bridge");
+        bridge.authenticate(true);
+        String username = bridge.getUsername();
+        System.out.println("Finished: " +  username);
+        return username;
+    }
+
+    public Boolean connectBridgeLink(String username,int bridgeIndex)
+    {
+        List<HueBridge> bridges = HueBridge.discover();
+        bridge = bridges.get(bridgeIndex);
+        return bridge.authenticate(username, true);
+    }
+
+    public Boolean connectBridgeLink(String username,String ipAddress)
+    {
+        try{bridge = new HueBridge(InetAddress.getByName(ipAddress),username);}catch (UnknownHostException e) {e.printStackTrace();}
+        return bridge.authenticate(username, true);
+    }
+
+    public void testLightConnection()
+    {
+        if (bridge == null)
+        {
+            System.out.println("No active bridge, cannot test lights");
+            return;
+        }
+        Collection<? extends HueLightBulb> lights = bridge.getLights();
+        System.out.println("Found " + lights.size() + " lights:");
+        for(final HueLightBulb lighttmp : lights) {
+            System.out.println(lighttmp);
+        }
+        HueLightBulb light;
+
+        System.out.println("Testing LEFT light now");
+        light = bridge.getLight(leftLightId);
+        light.setOn(true);
+        try {Thread.sleep(1500);} catch (InterruptedException e) {}
+        light.setOn(false);
+
+        System.out.println("Testing TOP light now");
+        light = bridge.getLight(topLightId);
+        light.setOn(true);
+        try {Thread.sleep(1500);} catch (InterruptedException e) {}
+        light.setOn(false);
+
+        System.out.println("Testing RIGHT light now");
+        light = bridge.getLight(rightLightId);
+        light.setOn(true);
+        try {Thread.sleep(1500);} catch (InterruptedException e) {}
+        light.setOn(false);
+
+        if (bottomLightId != -1)
+        {
+            System.out.println("Testing BOTTOM light now");
+            light = bridge.getLight(bottomLightId);
+            light.setOn(true);
+            try {Thread.sleep(1500);} catch (InterruptedException e) {}
+            light.setOn(false);
+        }
+
+
+    }
+
+    public void updateAllLights(float[] left,float[] right, float[] top, float[] bottom)
+    {
+        updateLight(leftLightId,left);
+        updateLight(rightLightId,right);
+        updateLight(topLightId,top);
+        updateLight(bottomLightId,bottom);
+    }
+
+    public void updateLight(int lightIndex,float[] hsv)
+    {
+        if (lightIndex == -1)
+            return;
+
+        if (bridge == null)
+        {
+            System.out.println("No active bridge, cannot test lights");
+            return;
+        }
+        float HUE= hsv[0] * 65535;
+        float SAT= hsv[1] * 255;
+        float BRI= hsv[2] * 255;
+
+        HueLightBulb light = bridge.getLight(lightIndex);
+        light.setOn(true);
+        light.setBrightness(Math.round(BRI));
+        light.setSaturation(Math.round(SAT));
+        light.setHue(Math.round(HUE));
     }
 
     public float[] scanSection(HashMap<Integer,Integer> coords)
@@ -141,32 +308,14 @@ public class ambientControl {
 //Convert RGB values to HSV(Hue Saturation and Brightness)
         float[] hsv = new float[3];
         Color.RGBtoHSB(Math.round(r),Math.round(g),Math.round(b),hsv);
-        System.out.print(Math.round(r));
-        System.out.print(", ");
-        System.out.print(Math.round(g));
-        System.out.print(", ");
-        System.out.println(Math.round(b));
 //You can multiply SAT or BRI by a digit to make it less saturated or bright
         float HUE= hsv[0] * 65535;
         float SAT= hsv[1] * 255;
         float BRI= hsv[2] * 255;
-
 //Convert floats to integers
         String hue = String.valueOf(Math.round(HUE));
         String sat = String.valueOf(Math.round(SAT));
         String bri = String.valueOf(Math.round(BRI));
-
-
-
-
-// print a message, this is just for testing purpose
-            System.out.println(hue);
-            System.out.println(sat);
-            System.out.println(bri);
-// create a process and execute cmdArray and currect environment
-            //Process process = Runtime.getRuntime().exec(cmdArray);
-
-
         return hsv;
 
 
