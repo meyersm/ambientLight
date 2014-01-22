@@ -1,9 +1,11 @@
 ambientLight
 ============
 
-Uses 3 Phillips Hue bulbs, positioned to the left, right, and behind a monitor to create ambient light mirror what is currently on the screen. Large chucks of the screen are scanned then the average color of pixels within those chunks are used to
+Uses 3 Phillips Hue bulbs, positioned to the left, right, and behind a monitor to create ambient light that mirrors what is currently on the screen. Large chunks of the screen are scanned then the average color of pixels within those chunks are used to
 set the color of the bulb, meaning the right light will match the color of screen near the right edge. The average color for the screen chunks is evaluated constantly and the lights will change as the screen changes.
 
+
+[Example of ambientLight in action](sample/Sample-1.JPG)
 
 Getting Started
 ---------------
