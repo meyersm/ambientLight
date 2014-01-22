@@ -83,7 +83,7 @@ public class ambientControl {
                     try {
                         Thread.sleep(300);
                     } catch (InterruptedException e) {
-                        e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+                        e.printStackTrace();
                     }
                 }
 
@@ -213,9 +213,22 @@ public class ambientControl {
 
         HueLightBulb light = bridge.getLight(lightIndex);
         light.setOn(true);
-        light.setBrightness(Math.round(BRI));
-        light.setSaturation(Math.round(SAT));
-        light.setHue(Math.round(HUE));
+        try{
+            light.setBrightness(Math.round(BRI));
+        }catch (IllegalArgumentException e){
+            System.out.println("Illegal argument exception:" + Math.round(BRI));
+        }
+        try{
+            light.setSaturation(Math.round(SAT));
+        }catch (IllegalArgumentException e){
+            System.out.println("Illegal argument exception:" + Math.round(BRI));
+        }
+        try{
+            light.setHue(Math.round(HUE));
+        }catch (IllegalArgumentException e){
+            System.out.println("Illegal argument exception:" + Math.round(BRI));
+        }
+
     }
 
     public float[] scanSection(HashMap<Integer,Integer> coords)
